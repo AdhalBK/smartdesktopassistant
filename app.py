@@ -1,12 +1,14 @@
 import streamlit as st
 import time
 from gtts import gTTS
-import speech_recognition as sr
 from datetime import datetime
 import os
 import json
 import base64
 import google.generativeai as genai
+from pydub import AudioSegment
+from pydub.playback import play
+import io
 
 # Gemini API Key
 GEMINI_API_KEY = "AIzaSyAvJhi8kIqaWFSX2Z3Dumd-hCQKwjnYTJc"
@@ -31,7 +33,7 @@ if "show_tutorial" not in st.session_state:
 if "quote" not in st.session_state:
     st.session_state.quote = ""
 
-# Load saved tasks
+# Load and save tasks
 def load_tasks():
     if os.path.exists(TASKS_FILE):
         with open(TASKS_FILE, "r") as f:
@@ -41,19 +43,17 @@ def load_tasks():
                 return []
     return []
 
-# Save tasks to disk
 def save_tasks():
     with open(TASKS_FILE, "w") as f:
         json.dump(st.session_state.tasks, f)
 
 st.session_state.tasks = load_tasks()
 
-# Format time
+# Timer logic
 def format_time(seconds):
     mins, secs = divmod(seconds, 60)
     return f"{mins:02}:{secs:02}"
 
-# Timer logic
 def update_timer():
     if st.session_state.running and st.session_state.timer_seconds > 0:
         st.session_state.timer_seconds -= 1
@@ -71,28 +71,14 @@ def reset_timer():
     st.session_state.timer_seconds = st.session_state.custom_minutes * 60
     st.session_state.running = False
 
-# ✅ New TTS (Google TTS)
+# ✅ TTS function (works on cloud)
 def speak(text):
     tts = gTTS(text=text, lang='en')
     tts.save("voice.mp3")
-    st.audio("voice.mp3", autoplay=True)
+    audio_file = open("voice.mp3", "rb")
+    st.audio(audio_file.read(), format="audio/mp3", start_time=0)
 
-# Voice Assistant
-def voice_assistant():
-    recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("Listening...")
-        try:
-            audio = recognizer.listen(source, timeout=15)
-            text = recognizer.recognize_google(audio)
-            st.success(f"You said: {text}")
-            speak(text)
-        except sr.UnknownValueError:
-            st.warning("Sorry, I couldn't understand.")
-        except sr.RequestError:
-            st.warning("API request error.")
-
-# Gemini quote
+# Gemini AI helpers
 def get_gemini_quote():
     try:
         model = genai.GenerativeModel("gemini-2.0-flash")
@@ -101,7 +87,6 @@ def get_gemini_quote():
     except Exception as e:
         return f"Error: {e}"
 
-# Gemini Q&A
 def ask_gemini(question):
     if not question:
         return "Please enter a question."
@@ -112,7 +97,6 @@ def ask_gemini(question):
     except Exception as e:
         return f"Error: {e}"
 
-# AI assist with tasks
 def ai_assist(task):
     try:
         model = genai.GenerativeModel("gemini-2.0-flash")
@@ -122,7 +106,7 @@ def ai_assist(task):
     except Exception as e:
         return f"Error: {e}"
 
-# Apply background
+# Background image
 if st.session_state.background:
     st.markdown(
         f"""
@@ -136,7 +120,7 @@ if st.session_state.background:
         unsafe_allow_html=True
     )
 
-# Tutorial on first load
+# Tutorial
 if st.session_state.show_tutorial:
     st.title("🎓 Smart Desk Assistant Tutorial")
     st.markdown("""
@@ -144,7 +128,7 @@ if st.session_state.show_tutorial:
         - ⏳ Use the Pomodoro timer to focus.
         - 🧠 Ask questions using Gemini AI.
         - 📝 Add tasks and let the assistant help or remind you.
-        - 🎙 Use voice input.
+        - 🎙 Use text-to-speech.
         - 🌄 Upload a background to customize.
         """)
     if st.button("Got it! Start using the app"):
@@ -152,17 +136,14 @@ if st.session_state.show_tutorial:
         st.rerun()
     st.stop()
 
-# App title
+# App UI
 st.title("🖥️ Smart Desk Assistant")
-
-# Show current time
 st.subheader("⏰ Current Time")
 st.write(datetime.now().strftime("%H:%M:%S"))
 
-# Timer UI
+# Timer
 st.subheader("⏳ Pomodoro Timer")
 st.write(f"Time Left: **{format_time(st.session_state.timer_seconds)}**")
-
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("▶️ Start", disabled=st.session_state.running):
@@ -174,31 +155,19 @@ with col3:
     if st.button("🔄 Reset"):
         reset_timer()
 
-# Timer settings
 st.subheader("⚙️ Timer Settings")
 st.session_state.custom_minutes = st.slider("Set Timer (minutes)", 1, 60, 25)
 if st.button("Save Timer Duration"):
     reset_timer()
 
-# AI Quote with refresh button
+# AI Quote
 st.subheader("💡 AI-Generated Quote")
 cols_q = st.columns([0.8, 0.2])
 with cols_q[0]:
     if not st.session_state.quote:
         st.session_state.quote = get_gemini_quote()
     st.markdown(
-        f"""
-        <div style='
-            background-color: #1e3a5f;
-            color: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            font-size: 16px;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: auto;
-        '>{st.session_state.quote}</div>
-        """,
+        f"<div style='background-color: #1e3a5f; color:white; padding:1rem; border-radius:10px;'>{st.session_state.quote}</div>",
         unsafe_allow_html=True
     )
 with cols_q[1]:
@@ -206,10 +175,12 @@ with cols_q[1]:
         st.session_state.quote = get_gemini_quote()
         st.rerun()
 
-# Voice Assistant
-st.subheader("🎙️ Voice Assistant")
+# TTS Text Input
+st.subheader("🎙️ Text-to-Speech")
+tts_text = st.text_input("Enter text to speak:")
 if st.button("Speak"):
-    voice_assistant()
+    if tts_text:
+        speak(tts_text)
 
 # Ask Gemini
 st.subheader("💬 Ask Gemini AI")
@@ -217,18 +188,7 @@ question = st.text_input("Enter your question:")
 if st.button("Ask Gemini"):
     answer = ask_gemini(question)
     st.markdown(
-        f"""
-        <div style='
-            background-color: #1e3a5f;
-            color: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            font-size: 16px;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: auto;
-        '>{answer}</div>
-        """,
+        f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{answer}</div>",
         unsafe_allow_html=True
     )
 
@@ -245,25 +205,9 @@ for i, item in enumerate(st.session_state.tasks.copy()):
     done = cols[0].checkbox("", value=item["done"], key=f"task_done_{i}")
     st.session_state.tasks[i]["done"] = done
     cols[1].markdown(f"✅ {item['task']}" if done else f"📝 {item['task']}")
-    
     if cols[2].button("AI Help", key=f"ai_help_{i}"):
         response = ai_assist(item["task"])
-        st.markdown(
-            f"""
-            <div style='
-                background-color: #0d2a3d;
-                color: white;
-                padding: 1.5rem;
-                border-radius: 10px;
-                font-size: 16px;
-                line-height: 1.6;
-                max-width: 800px;
-                margin: auto;
-            '>{response}</div>
-            """,
-            unsafe_allow_html=True
-        )
-    
+        st.markdown(f"<div style='background-color:#0d2a3d; color:white; padding:1rem; border-radius:10px;'>{response}</div>", unsafe_allow_html=True)
     if cols[3].button("🗑️ Delete", key=f"delete_task_{i}"):
         st.session_state.tasks.pop(i)
         save_tasks()
@@ -277,6 +221,6 @@ if uploaded_file is not None:
     st.session_state.background = base64.b64encode(image_data).decode()
     st.rerun()
 
-# Update timer
+# Timer update
 if st.session_state.running:
     update_timer()
