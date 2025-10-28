@@ -1,7 +1,7 @@
-streamlit
-gtts
+streamlit==1.30.0
+streamlit-webrtc==0.47.0
+gTTS
 speechrecognition
 google-generativeai
-streamlit-webrtc
-av
 numpy
+av
