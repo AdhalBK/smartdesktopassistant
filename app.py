@@ -26,6 +26,7 @@ for key, default in {
     "quote": "",
     "listening": False,
     "voice_frames": [],
+    "tts_text": "",
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -162,12 +163,9 @@ with cols_q[1]:
 
 # ===== Text-to-Speech =====
 st.subheader("🎙️ Text-to-Speech")
-with st.expander("Enter text for TTS"):
-    tts_text = st.text_area("Type your text here:", height=80)
-    if st.button("🔊 Speak Text") and tts_text.strip() != "":
-        speak(tts_text)
-    elif st.button("🔊 Speak Text") and tts_text.strip() == "":
-        st.warning("Please enter some text to speak.")
+st.session_state.tts_text = st.text_area("Enter text for TTS:", st.session_state.tts_text, height=80)
+if st.button("🔊 Speak Text") and st.session_state.tts_text.strip() != "":
+    speak(st.session_state.tts_text)
 
 # ===== Voice Assistant =====
 st.subheader("🎤 Voice Assistant")
@@ -182,6 +180,7 @@ with col_stop:
         if st.session_state.voice_frames:
             audio_bytes = b"".join(st.session_state.voice_frames)
             voice_to_gemini(audio_bytes)
+        st.success("Stopped Listening ✅")  # Update UI
 
 if st.session_state.listening:
     webrtc_ctx = webrtc_streamer(
