@@ -10,7 +10,7 @@ import google.generativeai as genai
 from io import BytesIO
 
 # ===================== CONFIG =====================
-GEMINI_API_KEY = "AIzaSyAvJhi8kIqaWFSX2Z3Dumd-hCQKwjnYTJc"
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
 genai.configure(api_key=GEMINI_API_KEY)
 TASKS_FILE = "tasks.json"
 
@@ -24,6 +24,7 @@ for key, default in {
     "show_tutorial": True,
     "quote": "",
     "voice_text": "",
+    "gemini_answer": "",
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -51,9 +52,9 @@ def update_timer():
     if st.session_state.running and st.session_state.timer_seconds > 0:
         st.session_state.timer_seconds -= 1
         time.sleep(1)
-        st.experimental_rerun()
+        st.rerun()
 
-def start_timer(): st.session_state.running = True; st.experimental_rerun()
+def start_timer(): st.session_state.running = True; st.rerun()
 def stop_timer(): st.session_state.running = False
 def reset_timer(): st.session_state.timer_seconds = st.session_state.custom_minutes*60; st.session_state.running=False
 
@@ -107,19 +108,12 @@ def ask_gemini_about_voice():
     if st.session_state.voice_text.strip() == "":
         st.warning("No recorded text to ask Gemini.")
         return
-    answer = ask_gemini(st.session_state.voice_text)
+    st.session_state.gemini_answer = ask_gemini(st.session_state.voice_text)
     st.markdown(
-        f"""
-        <div style='
-            background-color: #1e3a5f;
-            color: white;
-            padding: 1rem;
-            border-radius: 10px;
-        '>{answer}</div>
-        """,
+        f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{st.session_state.gemini_answer}</div>",
         unsafe_allow_html=True
     )
-    speak(answer)
+    speak(st.session_state.gemini_answer)
 
 # ===================== BACKGROUND =====================
 if st.session_state.background:
@@ -141,9 +135,9 @@ if st.session_state.show_tutorial:
         - 🎙 Text-to-speech or voice assistant.
         - 🌄 Upload a background to customize.
     """)
-    if st.button("Got it! Start using the app", key="tutorial_button"):
+    if st.button("Got it! Start using the app", key="tutorial_btn"):
         st.session_state.show_tutorial = False
-        st.experimental_rerun()
+        st.rerun()
     st.stop()
 
 # ===================== APP UI =====================
@@ -173,7 +167,7 @@ with cols_q[0]:
 with cols_q[1]:
     if st.button("🔄 New Quote", key="quote_refresh"):
         st.session_state.quote = get_gemini_quote()
-        st.experimental_rerun()
+        st.rerun()
 
 # ===== Text-to-Speech Input =====
 st.subheader("🎙️ Text-to-Speech")
@@ -182,17 +176,17 @@ st.button("🔊 Speak Text", on_click=lambda: speak(tts_input), key="tts_speak")
 
 # ===== Voice Assistant =====
 st.subheader("🎤 Voice Assistant")
-col_rec, col_stop, col_ask = st.columns(3)
+col_rec, col_ask = st.columns(2)
 with col_rec: st.button("⏺ Record", on_click=record_voice, key="voice_record")
-with col_stop: st.button("⏹ Stop", key="voice_stop")  # UI message only
 with col_ask: st.button("💬 Ask Gemini about voice", on_click=ask_gemini_about_voice, key="voice_ask")
 st.text_area("Last recorded text:", st.session_state.voice_text, height=60, key="voice_text_area")
 
 # ===== Ask Gemini by Text =====
 st.subheader("💬 Ask Gemini AI")
 question = st.text_input("Enter your question:", key="question_input")
-st.button("Ask Gemini", on_click=lambda: st.session_state.update({"gemini_answer": ask_gemini(question)}), key="ask_gemini_btn")
-if "gemini_answer" in st.session_state:
+if st.button("Ask Gemini", key="ask_gemini_btn"):
+    st.session_state.gemini_answer = ask_gemini(question)
+if st.session_state.gemini_answer:
     st.markdown(f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{st.session_state.gemini_answer}</div>", unsafe_allow_html=True)
 
 # ===== To-Do List =====
@@ -201,7 +195,7 @@ new_task = st.text_input("Add new task:", key="new_task_input")
 if st.button("Add Task", key="add_task_btn") and new_task:
     st.session_state.tasks.append({"task": new_task, "done": False})
     save_tasks()
-    st.experimental_rerun()
+    st.rerun()
 
 for i, item in enumerate(st.session_state.tasks.copy()):
     cols = st.columns([0.05, 0.6, 0.2, 0.15])
@@ -214,16 +208,15 @@ for i, item in enumerate(st.session_state.tasks.copy()):
     if cols[3].button("🗑️ Delete", key=f"delete_task_{i}"):
         st.session_state.tasks.pop(i)
         save_tasks()
-        st.experimental_rerun()
+        st.rerun()
 
 # ===== Background Image =====
 st.subheader("🖼️ Upload Background Image")
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg","png"], key="bg_upload")
 if uploaded_file:
     st.session_state.background = base64.b64encode(uploaded_file.read()).decode()
-    st.experimental_rerun()
+    st.rerun()
 
 # ===== Timer Update =====
 if st.session_state.running:
     update_timer()
-
