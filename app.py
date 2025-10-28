@@ -9,11 +9,9 @@ import base64
 import google.generativeai as genai
 from io import BytesIO
 
-# Gemini API Key
+# ===================== CONFIG =====================
 GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
 genai.configure(api_key=GEMINI_API_KEY)
-
-# Persistent storage file
 TASKS_FILE = "tasks.json"
 
 # ===================== SESSION STATE =====================
@@ -25,9 +23,7 @@ for key, default in {
     "tasks": [],
     "show_tutorial": True,
     "quote": "",
-    "tts_text": "",
     "voice_text": "",
-    "recording": False,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -55,9 +51,9 @@ def update_timer():
     if st.session_state.running and st.session_state.timer_seconds > 0:
         st.session_state.timer_seconds -= 1
         time.sleep(1)
-        st.rerun()
+        st.experimental_rerun()
 
-def start_timer(): st.session_state.running = True; st.rerun()
+def start_timer(): st.session_state.running = True; st.experimental_rerun()
 def stop_timer(): st.session_state.running = False
 def reset_timer(): st.session_state.timer_seconds = st.session_state.custom_minutes*60; st.session_state.running=False
 
@@ -99,32 +95,41 @@ def record_voice():
     with sr.Microphone() as source:
         st.info("Recording... Speak now!")
         try:
-            audio = recognizer.listen(source, timeout=15)
-            text = recognizer.recognize_google(audio)
-            st.session_state.voice_text = text
-            st.success(f"Recorded: {text}")
+            audio = recognizer.listen(source, timeout=10)
+            st.session_state.voice_text = recognizer.recognize_google(audio)
+            st.success(f"Recorded Text: {st.session_state.voice_text}")
         except sr.UnknownValueError:
-            st.warning("Could not understand audio.")
+            st.warning("Sorry, I could not understand the audio.")
         except sr.RequestError:
-            st.warning("API request error.")
+            st.warning("API request failed.")
 
 def ask_gemini_about_voice():
     if st.session_state.voice_text.strip() == "":
-        st.warning("No voice recorded!")
+        st.warning("No recorded text to ask Gemini.")
         return
     answer = ask_gemini(st.session_state.voice_text)
     st.markdown(
-        f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{answer}</div>", 
+        f"""
+        <div style='
+            background-color: #1e3a5f;
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+        '>{answer}</div>
+        """,
         unsafe_allow_html=True
     )
     speak(answer)
 
 # ===================== BACKGROUND =====================
 if st.session_state.background:
-    st.markdown(
-        f"<style>.stApp {{ background-image: url('data:image/jpeg;base64,{st.session_state.background}'); background-size: cover;}}</style>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <style>
+    .stApp {{
+        background-image: url("data:image/jpeg;base64,{st.session_state.background}");
+        background-size: cover;
+    }}
+    </style>""", unsafe_allow_html=True)
 
 # ===================== TUTORIAL =====================
 if st.session_state.show_tutorial:
@@ -132,13 +137,13 @@ if st.session_state.show_tutorial:
     st.markdown("""
         - ⏳ Use the Pomodoro timer to focus.
         - 🧠 Ask questions using Gemini AI.
-        - 📝 Add tasks and let the assistant help or remind you.
-        - 🎙 Use voice input.
+        - 📝 Add tasks and get AI help.
+        - 🎙 Text-to-speech or voice assistant.
         - 🌄 Upload a background to customize.
     """)
-    if st.button("Got it! Start using the app"):
+    if st.button("Got it! Start using the app", key="tutorial_button"):
         st.session_state.show_tutorial = False
-        st.rerun()
+        st.experimental_rerun()
     st.stop()
 
 # ===================== APP UI =====================
@@ -150,12 +155,13 @@ st.write(datetime.now().strftime("%H:%M:%S"))
 st.subheader("⏳ Pomodoro Timer")
 st.write(f"Time Left: **{format_time(st.session_state.timer_seconds)}**")
 col1, col2, col3 = st.columns(3)
-with col1: st.button("▶️ Start", on_click=start_timer, disabled=st.session_state.running)
-with col2: st.button("⏹ Stop", on_click=stop_timer, disabled=not st.session_state.running)
-with col3: st.button("🔄 Reset", on_click=reset_timer)
+with col1: st.button("▶️ Start", on_click=start_timer, disabled=st.session_state.running, key="timer_start")
+with col2: st.button("⏹ Stop", on_click=stop_timer, disabled=not st.session_state.running, key="timer_stop")
+with col3: st.button("🔄 Reset", on_click=reset_timer, key="timer_reset")
+
 st.subheader("⚙️ Timer Settings")
-st.session_state.custom_minutes = st.slider("Set Timer (minutes)", 1, 60, 25)
-st.button("Save Timer Duration", on_click=reset_timer)
+st.session_state.custom_minutes = st.slider("Set Timer (minutes)", 1, 60, 25, key="timer_slider")
+st.button("Save Timer Duration", on_click=reset_timer, key="timer_save")
 
 # ===== AI Quote =====
 st.subheader("💡 AI-Generated Quote")
@@ -165,44 +171,37 @@ with cols_q[0]:
         st.session_state.quote = get_gemini_quote()
     st.markdown(f"<div style='background-color: #1e3a5f; color:white; padding:1rem; border-radius:10px;'>{st.session_state.quote}</div>", unsafe_allow_html=True)
 with cols_q[1]:
-    if st.button("🔄 New Quote"):
+    if st.button("🔄 New Quote", key="quote_refresh"):
         st.session_state.quote = get_gemini_quote()
-        st.rerun()
+        st.experimental_rerun()
 
-# ===== Text-to-Speech =====
+# ===== Text-to-Speech Input =====
 st.subheader("🎙️ Text-to-Speech")
-st.session_state.tts_text = st.text_area("Enter text for TTS:", st.session_state.tts_text, height=80)
-if st.button("🔊 Speak Text") and st.session_state.tts_text.strip() != "":
-    speak(st.session_state.tts_text)
+tts_input = st.text_area("Enter text for TTS:", height=80, key="tts_input")
+st.button("🔊 Speak Text", on_click=lambda: speak(tts_input), key="tts_speak")
 
-# ===== Voice Assistant with Record & Stop =====
+# ===== Voice Assistant =====
 st.subheader("🎤 Voice Assistant")
 col_rec, col_stop, col_ask = st.columns(3)
-with col_rec:
-    if st.button("⏺ Record"):
-        record_voice()
-with col_stop:
-    if st.button("⏹ Stop"):
-        st.info("Recording stopped.")
-with col_ask:
-    if st.button("💬 Ask Gemini about voice"):
-        ask_gemini_about_voice()
-st.text_area("Last recorded text:", st.session_state.voice_text, height=60)
+with col_rec: st.button("⏺ Record", on_click=record_voice, key="voice_record")
+with col_stop: st.button("⏹ Stop", key="voice_stop")  # UI message only
+with col_ask: st.button("💬 Ask Gemini about voice", on_click=ask_gemini_about_voice, key="voice_ask")
+st.text_area("Last recorded text:", st.session_state.voice_text, height=60, key="voice_text_area")
 
 # ===== Ask Gemini by Text =====
 st.subheader("💬 Ask Gemini AI")
-question = st.text_input("Enter your question:")
-if st.button("Ask Gemini"):
-    answer = ask_gemini(question)
-    st.markdown(f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{answer}</div>", unsafe_allow_html=True)
+question = st.text_input("Enter your question:", key="question_input")
+st.button("Ask Gemini", on_click=lambda: st.session_state.update({"gemini_answer": ask_gemini(question)}), key="ask_gemini_btn")
+if "gemini_answer" in st.session_state:
+    st.markdown(f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{st.session_state.gemini_answer}</div>", unsafe_allow_html=True)
 
 # ===== To-Do List =====
 st.subheader("✅ To-Do List with AI Assistant")
-new_task = st.text_input("Add new task:")
-if st.button("Add Task") and new_task:
+new_task = st.text_input("Add new task:", key="new_task_input")
+if st.button("Add Task", key="add_task_btn") and new_task:
     st.session_state.tasks.append({"task": new_task, "done": False})
     save_tasks()
-    st.rerun()
+    st.experimental_rerun()
 
 for i, item in enumerate(st.session_state.tasks.copy()):
     cols = st.columns([0.05, 0.6, 0.2, 0.15])
@@ -215,14 +214,14 @@ for i, item in enumerate(st.session_state.tasks.copy()):
     if cols[3].button("🗑️ Delete", key=f"delete_task_{i}"):
         st.session_state.tasks.pop(i)
         save_tasks()
-        st.rerun()
+        st.experimental_rerun()
 
 # ===== Background Image =====
 st.subheader("🖼️ Upload Background Image")
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png"])
-if uploaded_file is not None:
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg","png"], key="bg_upload")
+if uploaded_file:
     st.session_state.background = base64.b64encode(uploaded_file.read()).decode()
-    st.rerun()
+    st.experimental_rerun()
 
 # ===== Timer Update =====
 if st.session_state.running:
