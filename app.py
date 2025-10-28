@@ -11,7 +11,7 @@ import speech_recognition as sr
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
 
 # Gemini API Key
-GEMINI_API_KEY = "AIzaSyAvJhi8kIqaWFSX2Z3Dumd-hCQKwjnYTJc"
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Persistent storage file
@@ -106,16 +106,18 @@ def ai_assist(task):
     except Exception as e:
         return f"Error: {e}"
 
-# Voice assistant using recorded audio
-def voice_assistant(audio_bytes):
+# Voice assistant using recorded audio as Gemini query
+def voice_to_gemini(audio_bytes):
     recognizer = sr.Recognizer()
     audio_data = sr.AudioFile(BytesIO(audio_bytes))
     with audio_data as source:
         audio = recognizer.record(source)
     try:
-        text = recognizer.recognize_google(audio)
-        st.success(f"You said: {text}")
-        speak(text)
+        spoken_text = recognizer.recognize_google(audio)
+        st.info(f"You said: {spoken_text}")
+        answer = ask_gemini(spoken_text)
+        st.success(f"Gemini AI Answer: {answer}")
+        speak(answer)
     except Exception as e:
         st.warning(f"Could not process audio: {e}")
 
@@ -139,7 +141,7 @@ if st.session_state.show_tutorial:
     st.markdown("""
         Welcome! Here's how to use the assistant:
         - ⏳ Use the Pomodoro timer to focus.
-        - 🧠 Ask questions using Gemini AI.
+        - 🧠 Ask questions using Gemini AI (by text or voice).
         - 📝 Add tasks and let the assistant help or remind you.
         - 🎙 Use text-to-speech or voice assistant.
         - 🌄 Upload a background to customize.
@@ -195,7 +197,7 @@ if st.button("Speak"):
     if tts_text:
         speak(tts_text)
 
-# Voice Assistant (Record & Stop)
+# Voice Assistant (record → send to Gemini)
 st.subheader("🎤 Voice Assistant")
 webrtc_ctx = webrtc_streamer(
     key="voice-assistant",
@@ -211,8 +213,8 @@ if webrtc_ctx.audio_receiver:
     audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
     if audio_frames:
         audio_bytes = b"".join([f.to_bytes() for f in audio_frames])
-        if st.button("Process Voice"):
-            voice_assistant(audio_bytes)
+        if st.button("Ask Gemini by Voice"):
+            voice_to_gemini(audio_bytes)
 
 # Ask Gemini
 st.subheader("💬 Ask Gemini AI")
