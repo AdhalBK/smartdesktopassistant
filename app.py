@@ -10,7 +10,7 @@ import google.generativeai as genai
 from io import BytesIO
 
 # ===================== CONFIG =====================
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+GEMINI_API_KEY = "AIzaSyAvJhi8kIqaWFSX2Z3Dumd-hCQKwjnYTJc"
 genai.configure(api_key=GEMINI_API_KEY)
 TASKS_FILE = "tasks.json"
 
@@ -220,3 +220,4 @@ if uploaded_file:
 # ===== Timer Update =====
 if st.session_state.running:
     update_timer()
+
