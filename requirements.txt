@@ -1,7 +1,7 @@
 streamlit
-gTTS
+gtts
+speechrecognition
 google-generativeai
-SpeechRecognition
 streamlit-webrtc
-pydub
-
+av
+numpy
