@@ -6,9 +6,9 @@ import os
 import json
 import base64
 import google.generativeai as genai
-from pydub import AudioSegment
-from pydub.playback import play
-import io
+from io import BytesIO
+import speech_recognition as sr
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
 
 # Gemini API Key
 GEMINI_API_KEY = "AIzaSyAvJhi8kIqaWFSX2Z3Dumd-hCQKwjnYTJc"
@@ -71,7 +71,7 @@ def reset_timer():
     st.session_state.timer_seconds = st.session_state.custom_minutes * 60
     st.session_state.running = False
 
-# ✅ TTS function (works on cloud)
+# TTS function
 def speak(text):
     tts = gTTS(text=text, lang='en')
     tts.save("voice.mp3")
@@ -106,6 +106,19 @@ def ai_assist(task):
     except Exception as e:
         return f"Error: {e}"
 
+# Voice assistant using recorded audio
+def voice_assistant(audio_bytes):
+    recognizer = sr.Recognizer()
+    audio_data = sr.AudioFile(BytesIO(audio_bytes))
+    with audio_data as source:
+        audio = recognizer.record(source)
+    try:
+        text = recognizer.recognize_google(audio)
+        st.success(f"You said: {text}")
+        speak(text)
+    except Exception as e:
+        st.warning(f"Could not process audio: {e}")
+
 # Background image
 if st.session_state.background:
     st.markdown(
@@ -128,7 +141,7 @@ if st.session_state.show_tutorial:
         - ⏳ Use the Pomodoro timer to focus.
         - 🧠 Ask questions using Gemini AI.
         - 📝 Add tasks and let the assistant help or remind you.
-        - 🎙 Use text-to-speech.
+        - 🎙 Use text-to-speech or voice assistant.
         - 🌄 Upload a background to customize.
         """)
     if st.button("Got it! Start using the app"):
@@ -181,6 +194,25 @@ tts_text = st.text_input("Enter text to speak:")
 if st.button("Speak"):
     if tts_text:
         speak(tts_text)
+
+# Voice Assistant (Record & Stop)
+st.subheader("🎤 Voice Assistant")
+webrtc_ctx = webrtc_streamer(
+    key="voice-assistant",
+    mode=WebRtcMode.SENDONLY,
+    client_settings=ClientSettings(
+        media_stream_constraints={"audio": True, "video": False},
+        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+    ),
+    async_processing=True
+)
+
+if webrtc_ctx.audio_receiver:
+    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+    if audio_frames:
+        audio_bytes = b"".join([f.to_bytes() for f in audio_frames])
+        if st.button("Process Voice"):
+            voice_assistant(audio_bytes)
 
 # Ask Gemini
 st.subheader("💬 Ask Gemini AI")
