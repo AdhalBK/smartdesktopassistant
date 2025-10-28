@@ -162,9 +162,12 @@ with cols_q[1]:
 
 # ===== Text-to-Speech =====
 st.subheader("🎙️ Text-to-Speech")
-tts_text = st.text_input("Enter text to speak:")
-if st.button("Speak") and tts_text:
-    speak(tts_text)
+with st.expander("Enter text for TTS"):
+    tts_text = st.text_area("Type your text here:", height=80)
+    if st.button("🔊 Speak Text") and tts_text.strip() != "":
+        speak(tts_text)
+    elif st.button("🔊 Speak Text") and tts_text.strip() == "":
+        st.warning("Please enter some text to speak.")
 
 # ===== Voice Assistant =====
 st.subheader("🎤 Voice Assistant")
