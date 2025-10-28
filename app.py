@@ -180,7 +180,7 @@ with col_stop:
         if st.session_state.voice_frames:
             audio_bytes = b"".join(st.session_state.voice_frames)
             voice_to_gemini(audio_bytes)
-        st.success("Stopped Listening ✅")  # Update UI
+        st.success("Stopped Listening ✅")  # Reset UI message
 
 if st.session_state.listening:
     webrtc_ctx = webrtc_streamer(
