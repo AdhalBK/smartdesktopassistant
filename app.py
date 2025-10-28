@@ -1,6 +1,6 @@
 import streamlit as st
 import time
-import pyttsx3
+from gtts import gTTS
 import speech_recognition as sr
 from datetime import datetime
 import os
@@ -71,6 +71,12 @@ def reset_timer():
     st.session_state.timer_seconds = st.session_state.custom_minutes * 60
     st.session_state.running = False
 
+# ✅ New TTS (Google TTS)
+def speak(text):
+    tts = gTTS(text=text, lang='en')
+    tts.save("voice.mp3")
+    st.audio("voice.mp3", autoplay=True)
+
 # Voice Assistant
 def voice_assistant():
     recognizer = sr.Recognizer()
@@ -85,12 +91,6 @@ def voice_assistant():
             st.warning("Sorry, I couldn't understand.")
         except sr.RequestError:
             st.warning("API request error.")
-
-# TTS
-def speak(text):
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
 
 # Gemini quote
 def get_gemini_quote():
