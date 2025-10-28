@@ -8,11 +8,10 @@ import base64
 import google.generativeai as genai
 from io import BytesIO
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
-import av
-import numpy as np
 import queue
 import tempfile
 import speech_recognition as sr
+import av
 
 # ===================== CONFIG =====================
 GEMINI_API_KEY = "AIzaSyAvJhi8kIqaWFSX2Z3Dumd-hCQKwjnYTJc"
@@ -30,7 +29,6 @@ for key, default in {
     "quote": "",
     "voice_text": "",
     "gemini_answer": "",
-    "voice_queue": None,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -114,8 +112,8 @@ class AudioProcessor:
         self.q = queue.Queue()
 
     def recv(self, frame: av.AudioFrame):
-        img = frame.to_ndarray()
-        self.q.put(img)
+        audio_data = frame.to_ndarray()
+        self.q.put(audio_data)
         return frame
 
 def process_audio_queue(q):
@@ -209,14 +207,14 @@ webrtc_ctx = webrtc_streamer(
     audio_processor_factory=AudioProcessor,
 )
 
-col_ask = st.columns(1)
 if st.button("💬 Ask Gemini about voice", key="voice_ask"):
-    process_audio_queue(webrtc_ctx.audio_processor.q)
-    if st.session_state.voice_text.strip() != "":
-        answer = ask_gemini(st.session_state.voice_text)
-        st.session_state.gemini_answer = answer
-        st.markdown(f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{answer}</div>", unsafe_allow_html=True)
-        speak(answer)
+    if webrtc_ctx.audio_processor:
+        process_audio_queue(webrtc_ctx.audio_processor.q)
+        if st.session_state.voice_text.strip() != "":
+            answer = ask_gemini(st.session_state.voice_text)
+            st.session_state.gemini_answer = answer
+            st.markdown(f"<div style='background-color:#1e3a5f; color:white; padding:1rem; border-radius:10px;'>{answer}</div>", unsafe_allow_html=True)
+            speak(answer)
 
 # ===== Ask Gemini by Text =====
 st.subheader("💬 Ask Gemini AI")
@@ -242,4 +240,18 @@ for i, item in enumerate(st.session_state.tasks.copy()):
     if cols[2].button("AI Help", key=f"ai_help_{i}"):
         response = ai_assist(item["task"])
         st.markdown(f"<div style='background-color:#0d2a3d; color:white; padding:1rem; border-radius:10px;'>{response}</div>", unsafe_allow_html=True)
-    if cols[3].button("🗑️
+    if cols[3].button("🗑️ Delete", key=f"delete_task_{i}"):
+        st.session_state.tasks.pop(i)
+        save_tasks()
+        st.experimental_rerun()
+
+# ===== Background Image =====
+st.subheader("🖼️ Upload Background Image")
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg","png"], key="bg_upload")
+if uploaded_file:
+    st.session_state.background = base64.b64encode(uploaded_file.read()).decode()
+    st.experimental_rerun()
+
+# ===== Timer Update =====
+if st.session_state.running:
+    update_timer()
